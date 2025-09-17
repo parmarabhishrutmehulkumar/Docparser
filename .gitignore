@@ -1,0 +1,13 @@
+# ignore Google credentials and tokens
+credentials.json
+token.pickle
+
+# temp uploads and extracted outputs
+temp_uploads/
+extracted_content_*.md
+
+# OS / editor
+*.log
+.vscode/
+__pycache__/
+*.pyc
