@@ -1,12 +1,32 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from docling.document_converter import DocumentConverter
 from werkzeug.utils import secure_filename
 import os
 import logging
 import requests
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
+import json
+import io
+import time
+
+# PDF parsing + optional OCR
+import pdfplumber
+PYTESSERACT_AVAILABLE = False
+EASYOCR_AVAILABLE = False
+try:
+    import pytesseract
+    from PIL import Image
+    PYTESSERACT_AVAILABLE = True
+except Exception:
+    PYTESSERACT_AVAILABLE = False
+
+try:
+    import easyocr
+    import numpy as np
+    EASYOCR_AVAILABLE = True
+except Exception:
+    EASYOCR_AVAILABLE = False
 
 app = Flask(__name__)
 CORS(app, resources={r"/api/*": {"origins": "*"}}, supports_credentials=True)
@@ -17,115 +37,116 @@ logger = logging.getLogger(__name__)
 UPLOAD_FOLDER = 'temp_uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 ALLOWED_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+MAX_FILE_SIZE = 20 * 1024 * 1024  # increase if needed
 
-# n8n webhook (keep your existing webhook URL)
-N8N_WEBHOOK_URL = "http://localhost:5678/webhook-test/a6fdd077-5e86-4d4f-bebf-7178962fb86e"
+# n8n webhook URL (update if different)
+N8N_WEBHOOK_URL = "http://localhost:5678/webhook-test/7ff03c11-e208-46a9-8096-4e579bba78d5"
 
 processed_results = {}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def extract_resume_content(file_path):
-    converter = DocumentConverter()
-    result = converter.convert(file_path)
-    return result.document.export_to_markdown()
+def extract_text_from_pdf_bytes(pdf_bytes):
+    """
+    Try to extract embedded text using pdfplumber.
+    If no embedded text found, attempt OCR using pytesseract or EasyOCR.
+    Returns combined text (string).
+    """
+    texts = []
+    try:
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            for i, page in enumerate(pdf.pages, start=1):
+                try:
+                    page_text = page.extract_text()
+                except Exception as e:
+                    logger.debug("pdfplumber page.extract_text error on page %s: %s", i, e)
+                    page_text = None
 
-def send_to_n8n(filename, parsed_text, session_id):
-    payload = {
-        "filename": filename,
-        "parsedText": parsed_text,
-        "sessionId": session_id
+                if page_text and page_text.strip():
+                    texts.append(page_text)
+                    continue
+
+                # No embedded text: attempt OCR
+                ocr_text = None
+
+                if PYTESSERACT_AVAILABLE:
+                    try:
+                        pil_img = page.to_image(resolution=300).original.convert("RGB")
+                        ocr_text = pytesseract.image_to_string(pil_img)
+                        if ocr_text and ocr_text.strip():
+                            texts.append(ocr_text)
+                            continue
+                    except Exception as e:
+                        logger.debug("pytesseract OCR error page %s: %s", i, e)
+
+                if EASYOCR_AVAILABLE:
+                    try:
+                        pil_img = page.to_image(resolution=300).original.convert("RGB")
+                        img_np = np.array(pil_img)
+                        reader = easyocr.Reader(['en'], gpu=False)
+                        results = reader.readtext(img_np)
+                        if results:
+                            ocr_text = "\n".join([r[1] for r in results])
+                            texts.append(ocr_text)
+                            continue
+                    except Exception as e:
+                        logger.debug("EasyOCR error page %s: %s", i, e)
+
+                logger.debug("Page %s: no text extracted (embedded/OCR)", i)
+
+    except Exception as e:
+        logger.exception("Failed to open PDF bytes with pdfplumber: %s", e)
+
+    combined = "\n\n".join(texts).strip()
+    return combined
+
+def send_to_n8n(file_bytes, filename, mimetype, session_id, preferences, parsed_text):
+    """
+    Send file + parsed text + metadata to n8n webhook.
+    Returns True on 2xx response, False otherwise.
+    """
+    files = {
+        'file': (filename, io.BytesIO(file_bytes), mimetype or 'application/pdf')
+    }
+    data = {
+        'sessionId': session_id,
+        'filename': filename,
+        'preferences': json.dumps(preferences or {}),
+        'parsedText': parsed_text or ''
     }
     try:
-        resp = requests.post(N8N_WEBHOOK_URL, json=payload, timeout=20)
-        resp.raise_for_status()
-        
-        # Get the extracted data directly from the response
-        result = resp.json()
-        if result.get('success'):
-            extracted_data = result.get('extractedData', {})
-            
-            # Store the extracted data in processed_results
-            processed_results[session_id] = {
-                'status': 'completed',
-                'data': extracted_data,
-                'timestamp': datetime.utcnow().isoformat()
-            }
-            
-            logger.info(f"Extracted data for session {session_id}: {extracted_data}")
-            return True
-        else:
-            logger.error(f"n8n returned error for session {session_id}")
+        logger.info("Sending file+parsedText to n8n at %s (session=%s)", N8N_WEBHOOK_URL, session_id)
+        resp = requests.post(N8N_WEBHOOK_URL, files=files, data=data, timeout=90)
+        if not resp.ok:
+            logger.warning("n8n returned status %s: %s", resp.status_code, resp.text[:1000])
             return False
-            
-    except Exception as e:
-        logger.error("Failed sending to n8n: %s", e)
+
+        try:
+            result = resp.json()
+            logger.info("n8n response JSON: %s", result)
+            # if n8n returns immediate processed data, store it
+            if isinstance(result, dict) and result.get('success') and result.get('processedData'):
+                processed_results[session_id] = {
+                    'status': 'completed',
+                    'data': result.get('processedData'),
+                    'received_at': datetime.now(timezone.utc).isoformat()
+                }
+                return True
+        except Exception:
+            # non-json response is acceptable if status OK
+            logger.debug("n8n response not JSON")
+
+        processed_results[session_id] = {
+            'status': 'processing',
+            'data': None,
+            'sent_at': datetime.now(timezone.utc).isoformat()
+        }
+        return True
+
+    except requests.exceptions.RequestException as e:
+        logger.exception("Request to n8n failed: %s", e)
         return False
-
-def analyze_resume_content(content, preferences):
-    field_keywords = {
-        'computer-science': ['python', 'java', 'programming', 'software', 'developer', 'coding', 'algorithm'],
-        'engineering': ['engineering', 'technical', 'design', 'project', 'CAD', 'matlab'],
-        'business': ['management', 'business', 'marketing', 'sales', 'finance', 'consulting'],
-        'medicine': ['medical', 'healthcare', 'patient', 'clinical', 'hospital', 'nursing'],
-        'law': ['legal', 'law', 'court', 'attorney', 'litigation', 'contract'],
-        'arts': ['creative', 'design', 'art', 'music', 'writing', 'literature'],
-        'sciences': ['research', 'laboratory', 'analysis', 'data', 'experiment', 'scientific'],
-        'social-sciences': ['psychology', 'sociology', 'research', 'social', 'community'],
-        'education': ['teaching', 'education', 'curriculum', 'student', 'classroom'],
-        'psychology': ['psychology', 'mental health', 'counseling', 'therapy', 'behavioral']
-    }
-
-    content_lower = (content or "").lower()
-    field_of_study = preferences.get('fieldOfStudy', '')
-    relevant_keywords = field_keywords.get(field_of_study, [])
-    keyword_matches = sum(1 for keyword in relevant_keywords if keyword in content_lower)
-    match_score = min(100, (keyword_matches / max(len(relevant_keywords), 1)) * 100)
-
-    analysis = {
-        'match_score': round(match_score, 2),
-        'relevant_keywords_found': keyword_matches,
-        'total_keywords_checked': len(relevant_keywords),
-        'recommendations': []
-    }
-
-    if match_score >= 70:
-        analysis['recommendations'].append("Your background strongly aligns with your chosen field!")
-    elif match_score >= 40:
-        analysis['recommendations'].append("Good alignment with some areas for skill development.")
-    else:
-        analysis['recommendations'].append("Consider highlighting relevant skills or exploring related fields.")
-
-    return analysis
-
-def generate_university_recommendations(preferences, resume_analysis=None):
-    universities = {
-        'computer-science': [
-            {'name': 'MIT', 'location': 'Cambridge, MA', 'rank': 1, 'match_score': 95},
-            {'name': 'Stanford University', 'location': 'Stanford, CA', 'rank': 2, 'match_score': 93},
-            {'name': 'Carnegie Mellon', 'location': 'Pittsburgh, PA', 'rank': 3, 'match_score': 90}
-        ],
-        'engineering': [
-            {'name': 'Caltech', 'location': 'Pasadena, CA', 'rank': 1, 'match_score': 94},
-            {'name': 'UC Berkeley', 'location': 'Berkeley, CA', 'rank': 2, 'match_score': 92},
-            {'name': 'Georgia Tech', 'location': 'Atlanta, GA', 'rank': 3, 'match_score': 88}
-        ],
-        'business': [
-            {'name': 'Harvard Business School', 'location': 'Boston, MA', 'rank': 1, 'match_score': 96},
-            {'name': 'Wharton School', 'location': 'Philadelphia, PA', 'rank': 2, 'match_score': 94},
-            {'name': 'Stanford GSB', 'location': 'Stanford, CA', 'rank': 3, 'match_score': 92}
-        ]
-    }
-    field = preferences.get('fieldOfStudy', 'computer-science')
-    base_recommendations = universities.get(field, universities['computer-science'])
-    if resume_analysis:
-        resume_score = resume_analysis.get('match_score', 50)
-        for uni in base_recommendations:
-            adjustment = (resume_score - 50) * 0.1
-            uni['match_score'] = min(100, max(0, uni['match_score'] + adjustment))
-    return base_recommendations[:3]
 
 @app.route('/api/submit-preferences', methods=['POST'])
 def submit_preferences():
@@ -139,8 +160,12 @@ def submit_preferences():
         }
 
         session_id = request.form.get("sessionId") or str(uuid.uuid4())
-        resume_analysis = None
-        resume_content = None
+        resume_uploaded = False
+        parsed_text = None
+        file_meta = None
+
+        # read optional wait timeout (seconds) from form, default 30s
+        wait_timeout = int(request.form.get('waitTimeout', 30))
 
         if 'resume' in request.files:
             file = request.files['resume']
@@ -148,94 +173,97 @@ def submit_preferences():
                 if not allowed_file(file.filename):
                     return jsonify({'success': False, 'error': 'Invalid file type.'}), 400
 
-                file.seek(0, os.SEEK_END)
-                file_size = file.tell()
-                file.seek(0)
+                # read bytes for parsing and forwarding
+                file.stream.seek(0)
+                file_bytes = file.read()
+                file_size = len(file_bytes)
                 if file_size > MAX_FILE_SIZE:
-                    return jsonify({'success': False, 'error': 'File too large (max 5MB).'}), 400
+                    return jsonify({'success': False, 'error': 'File too large (max 20MB).'}), 400
 
-                filename = secure_filename(file.filename)
-                temp_path = os.path.join(UPLOAD_FOLDER, f"{session_id}_{filename}")
-                file.save(temp_path)
-                logger.info(f"Saved resume file: {temp_path}")
+                file_meta = {
+                    'filename': secure_filename(file.filename),
+                    'mimetype': file.mimetype,
+                    'size': file_size
+                }
 
-                resume_content = extract_resume_content(temp_path)
-                resume_analysis = analyze_resume_content(resume_content, preferences)
+                # extract text using pdfplumber (+OCR fallback)
+                parsed_text = extract_text_from_pdf_bytes(file_bytes) or ''
+                logger.info("Extracted parsedText length=%s for session=%s", len(parsed_text), session_id)
 
-                # send parsed text to n8n
-                send_to_n8n(filename, resume_content, session_id)
+                # send file bytes and parsedText to n8n
+                sent = send_to_n8n(file_bytes, file_meta['filename'], file_meta['mimetype'], session_id, preferences, parsed_text)
+                resume_uploaded = bool(sent)
+                if not sent:
+                    logger.warning("Forward to n8n failed for session %s", session_id)
+                    # still continue — will return combined response with processed_status indicating failure
 
-                try:
-                    os.remove(temp_path)
-                except Exception as e:
-                    logger.warning(f"Failed to clean up temp file: {e}")
+        # ensure an entry exists
+        processed_results.setdefault(session_id, {
+            'status': 'processing' if resume_uploaded else 'no_resume_uploaded',
+            'data': None,
+            'timestamp': datetime.now(timezone.utc).isoformat()
+        })
 
-        recommendations = generate_university_recommendations(preferences, resume_analysis)
+        # WAIT for n8n result up to wait_timeout seconds (polling)
+        processed_item = processed_results.get(session_id)
+        if resume_uploaded and wait_timeout > 0:
+            start = time.time()
+            while time.time() - start < wait_timeout:
+                item = processed_results.get(session_id)
+                if item and item.get('status') == 'completed':
+                    processed_item = item
+                    break
+                time.sleep(1)
+        else:
+            processed_item = processed_results.get(session_id)
 
-        processed_results[session_id] = {
-            'status': 'sent_to_n8n',
-            'preview': resume_content[:1000] if resume_content else None,
-            'timestamp': datetime.utcnow().isoformat()
-        }
-
-        response = {
-            'success': True,
+        # build single merged document for ML downstream
+        merged = {
             'sessionId': session_id,
-            'data': {
-                'preferences': preferences,
-                'resume_uploaded': resume_content is not None,
-                'resume_analysis': resume_analysis,
-                'resume_content_preview': resume_content[:200] + "..." if resume_content and len(resume_content) > 200 else resume_content,
-                'university_recommendations': recommendations
-            }
+            'preferences': preferences,
+            'file': file_meta,                   # null if no file uploaded
+            'parsed_text': parsed_text or '',
+            'resume_uploaded': resume_uploaded,
+            'processed_status': processed_item.get('status') if processed_item else 'unknown',
+            'processed_output': processed_item.get('data') if processed_item else None,
+            'created_at': processed_item.get('timestamp') if processed_item and processed_item.get('timestamp') else datetime.now(timezone.utc).isoformat()
         }
-        return jsonify(response), 200
+
+        return jsonify({'success': True, 'result': merged}), 200
 
     except Exception as e:
-        logger.exception("Error processing request")
+        logger.exception("Error in submit-preferences: %s", e)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/receive-extracted-data', methods=['POST'])
 def n8n_callback():
-    """
-    Receive processed data from n8n.
-    Accepts JSON like:
-      { "sessionId": "...", "parsedData": {...} }
-    or
-      { "sessionId": "...", "processedData": {...} }
-    or various agent outputs (string or JSON).
-    """
     try:
         data = request.get_json(force=True, silent=True)
-        # fallback: if body was sent as raw string
         if data is None:
             raw = request.data.decode('utf-8') or ''
             try:
-                import json
                 data = json.loads(raw) if raw else {}
             except Exception:
                 data = {"raw": raw}
 
-        session_id = data.get('sessionId') or data.get('sessionId'.lower())
-        # try common fields where processed content may be
-        processed_data = data.get('parsedData') or data.get('processedData') or data.get('output') or data.get('data') or data.get('result') or data.get('body') or data.get('raw')
+        session_id = data.get('sessionId')
+        parsed_data = data.get('parsedData') or data.get('processedData') or data.get('data') or data.get('result')
 
         if not session_id:
-            logger.warning("n8n callback received without sessionId: %s", data)
+            logger.warning("n8n callback missing sessionId: %s", data)
             return jsonify({"success": False, "error": "no sessionId provided"}), 400
 
-        # store result (overwrite previous)
         processed_results[session_id] = {
             "status": "completed",
-            "data": processed_data,
-            "received_at": datetime.utcnow().isoformat()
+            "data": parsed_data,
+            "received_at": datetime.now(timezone.utc).isoformat()
         }
 
         logger.info("Stored n8n result for session %s", session_id)
         return jsonify({"success": True}), 200
 
     except Exception as e:
-        logger.exception("n8n callback error")
+        logger.exception("n8n callback error: %s", e)
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/api/get-processed-data/<session_id>', methods=['GET'])
@@ -243,7 +271,29 @@ def get_processed_data(session_id):
     item = processed_results.get(session_id)
     if not item:
         return jsonify({"success": False, "status": "processing"}), 202
-    return jsonify({"success": True, "status": item.get("status"), "data": item.get("data"), "preview": item.get("preview")}), 200
+    return jsonify({"success": True, "status": item.get("status"), "data": item.get("data")}), 200
+
+def generate_university_recommendations(preferences):
+    # simple stub recommendations
+    universities = {
+        'computer-science': [
+            {'name': 'MIT', 'location': 'Cambridge, MA', 'rank': 1},
+            {'name': 'Stanford', 'location': 'Stanford, CA', 'rank': 2},
+            {'name': 'Carnegie Mellon', 'location': 'Pittsburgh, PA', 'rank': 3}
+        ],
+        'engineering': [
+            {'name': 'Caltech', 'location': 'Pasadena, CA', 'rank': 1},
+            {'name': 'UC Berkeley', 'location': 'Berkeley, CA', 'rank': 2},
+            {'name': 'Georgia Tech', 'location': 'Atlanta, GA', 'rank': 3}
+        ],
+        'business': [
+            {'name': 'Harvard Business School', 'location': 'Boston, MA', 'rank': 1},
+            {'name': 'Wharton', 'location': 'Philadelphia, PA', 'rank': 2},
+            {'name': 'Stanford GSB', 'location': 'Stanford, CA', 'rank': 3}
+        ]
+    }
+    field = (preferences or {}).get('fieldOfStudy', 'computer-science')
+    return universities.get(field, universities['computer-science'])[:3]
 
 @app.route('/api/health', methods=['GET'])
 def health_check():

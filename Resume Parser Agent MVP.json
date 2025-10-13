@@ -1,0 +1,425 @@
+{
+  "name": "My workflow copy",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "7ff03c11-e208-46a9-8096-4e579bba78d5",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -128,
+        16
+      ],
+      "id": "57a480b7-117f-405a-b3f6-76df4767fd4e",
+      "name": "Webhook",
+      "webhookId": "7ff03c11-e208-46a9-8096-4e579bba78d5"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Parsed text (if available): {{$json[\"parsedText_clean\" || \"education_section\" || \"experience_section\" || \"skills_section\"]}} \n\nPDF binary (if parsedText missing): {{$binary.file.data}} (filename {{$binary.file.fileName}})\n\nExtract ONLY the following fields and return STRICT JSON exactly as below:\n\n{\n  \"cgpa\": \"...\",\n  \"degree\": \"...\",\n  \"year_of_education\": \"...\",\n  \"ielts_score\": \"...\",\n  \"toefl_score\": \"...\"\n}\n\nRules:\n- Return the single most recent/ongoing degree as \"degree\" (e.g., \"B.Tech in Computer Science\"). If missing use \"Not Found\".\n- For CGPA return a numeric string or \"Not Found\".\n- For year_of_education return graduation year (e.g., \"2024\") or \"Present\" or \"Not Found\".\n- For scores return numeric strings or \"Not Found\".\n- If parsedText is non-empty, prioritize it. Do NOT include any additional keys or text.",
+        "hasOutputParser": true,
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "=You are a strict information extractor for educational documents. Always return EXACTLY one JSON object and NOTHING else. The JSON must match this schema:\n{\n  \"cgpa\": \"string\",\n  \"degree\": \"string\",\n  \"year_of_education\": \"string\",\n  \"ielts_score\": \"string\",\n  \"toefl_score\": \"string\"\n}\nUse \"Not Found\" for missing values. Prefer the most recent/ongoing degree. If parsed text is provided, use it. If not, you may decode the PDF binary and OCR, but backend will usually provide parsedText. Normalize numeric values to plain strings (e.g., \"7.5\", \"320\"). Do not include any extra fields or commentary.\n\nIf multiple degrees exist, extract only the **Latest Degree** and its CGPA.\n\n\nCode to handle calculate expected end year: \n\n{\n\nconst DEGREE_DURATIONS = {\n    \"Diploma\": 3,\n    \"BTech\": 4,\n    \"B.Sc\": 3,\n    \"B.A\": 3,\n    \"M.Tech\": 2,\n    \"M.Sc\": 2,\n    \"MBA\": 2,\n    \"PhD\": 4\n};\n\nfunction fixYear(yearStr, degree) {\n    if (!yearStr) return null;\n\n    let startYear = null;\n    const match = yearStr.match(/(\\d{4})/);\n    if (match) startYear = parseInt(match[1], 10);\n\n    if (!startYear) return yearStr;\n\n    if (yearStr.toLowerCase().includes(\"present\")) {\n        const duration = DEGREE_DURATIONS[degree] || 4;\n        return startYear + duration;\n    }\n\n    // Handle ranges like \"2020-2024\" → just return end year\n    const rangeMatch = yearStr.match(/(\\d{4})\\s*-\\s*(\\d{4})/);\n    if (rangeMatch) return parseInt(rangeMatch[2], 10);\n\n    return startYear;\n}\n\n// Fix year_of_education\nconst item = $json;\nitem.year_of_education = fixYear(item.year_of_education, item.degree);\n\nreturn [{ json: item }];\n\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        992,
+        16
+      ],
+      "id": "86250ef5-0d95-4f62-87eb-0525b8dadc1c",
+      "name": "AI Agent",
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        576,
+        176
+      ],
+      "id": "ed37175c-f697-4237-a9f5-688bde943170",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "SmCuo5EEVBs57lkt",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{$json[\"sessionId\"]}}\n"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1008,
+        256
+      ],
+      "id": "ab9312bb-c0a0-49de-84e4-244c174e7b51",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Makes an HTTP request and returns the response data in JSON",
+        "method": "POST",
+        "url": "http://localhost:5678/webhook-test/7ff03c11-e208-46a9-8096-4e579bba78d5",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.2,
+      "position": [
+        1168,
+        224
+      ],
+      "id": "71162b2b-fbcc-46fb-8393-83e6ec1b2ac0",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "enableResponseOutput": true,
+        "respondWith": "json",
+        "responseBody": "={{ { success: true, extractedData: $json } }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        1744,
+        16
+      ],
+      "id": "8205c726-a1e1-4c2b-86df-6a210b49a95d",
+      "name": "Return WebHook1",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"cgpa\": { \"type\": \"string\" },\n    \"degree\": { \"type\": \"string\" },\n    \"year_of_education\": { \"type\": \"string\" },\n    \"ielts_score\": { \"type\": \"string\" },\n    \"toefl_score\": { \"type\": \"string\" }\n  },\n  \"required\": [\"cgpa\",\"degree\",\"year_of_education\",\"ielts_score\",\"toefl_score\"],\n  \"additionalProperties\": false\n}",
+        "autoFix": true
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1328,
+        224
+      ],
+      "id": "214ae89d-b8bc-413c-afe4-83a6910fd61f",
+      "name": "Structured Output Parser",
+      "notesInFlow": true,
+      "notes": "Extract educational information and return valid JSON with these fields: cgpa, degree, year_of_education, ielts_score, toefl_score. Use \"Not Found\" for missing information."
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        1408,
+        416
+      ],
+      "id": "4cf9b2d8-b234-4245-87e6-b5fa4c0628ee",
+      "name": "Google Gemini Chat Model1",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "a2NHVKiE3IVdWgH7",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// normalize agent output to required schema\nif (!items || items.length === 0) return [];\nconst input = items[0].json || {};\nconst out = input.output || input || {};\nfunction firstNum(s){ if(!s) return null; const m=String(s).match(/\\d+(\\.\\d+)?/); return m?m[0]:null; }\nconst parsed = {\n  cgpa: out.cgpa || (out.degree && out.degree.cgpa) || 'Not Found',\n  degree: out.degree && typeof out.degree==='string' ? out.degree : (out.degree && out.degree.degree_name) || out.degree || out.degrees && out.degrees[0] && (out.degrees[0].degree_name||out.degrees[0].degree) || 'Not Found',\n  year_of_education: out.year_of_education || out.year || (out.degree && out.degree.year_of_education) || 'Not Found',\n  ielts_score: out.ielts_score || out.IELTS || 'Not Found',\n  toefl_score: out.toefl_score || out.TOEFL || 'Not Found'\n};\n// normalize cgpa to numeric if possible\nif(parsed.cgpa && parsed.cgpa !== 'Not Found'){\n  const n = firstNum(parsed.cgpa);\n  if(n) parsed.cgpa = n;\n}\nfor(const k of ['cgpa','degree','year_of_education','ielts_score','toefl_score']){\n  if(!parsed[k]) parsed[k]='Not Found';\n  parsed[k]=String(parsed[k]).trim();\n}\nreturn [{ json: parsed }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1472,
+        16
+      ],
+      "id": "9b9c0324-a66c-4a04-8d34-ccb4c60a6980",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        800,
+        256
+      ],
+      "id": "c7f69b6c-96f1-47e7-aabc-8e60c99c164d",
+      "name": "Google Gemini Chat Model2",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "a2NHVKiE3IVdWgH7",
+          "name": "Google Gemini(PaLM) Api account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1360,
+        384
+      ],
+      "id": "87f73293-5961-4f2a-ab13-6a704f8fd376",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "Yk9wIn3pGIQ7URNx",
+          "name": "OpenRouter account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-5",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1568,
+        368
+      ],
+      "id": "5dcf8dca-086d-4d17-8e0d-a0b5b6e3c957",
+      "name": "OpenRouter Chat Model1",
+      "credentials": {
+        "openRouterApi": {
+          "id": "Yk9wIn3pGIQ7URNx",
+          "name": "OpenRouter account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        -1152,
+        384
+      ],
+      "id": "c18e375a-042e-4ae3-8dfe-fd61ad403365",
+      "name": "OpenRouter Chat Model2",
+      "credentials": {
+        "openRouterApi": {
+          "id": "Yk9wIn3pGIQ7URNx",
+          "name": "OpenRouter account"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Function node: clean + parse incoming parsedText\nif (!items || items.length === 0) return [];\n\nconst input = items[0].json || {};\nlet text =\n  input.parsedText ||\n  (input.body && input.body.parsedText) ||\n  input.text ||\n  input.raw ||\n  '';\n\n// basic cleanup\ntext = String(text);\ntext = text.replace(/\\r/g, ''); // normalize newlines\n// fix hyphenation at line-breaks (e.g. \"devel-\\nopment\" -> \"development\")\ntext = text.replace(/-\\s*\\n\\s*/g, '');\n// replace common ligatures\ntext = text.replace(/ﬁ/g, 'fi').replace(/ﬂ/g, 'fl');\n// collapse multiple spaces but keep paragraphs\ntext = text.replace(/[ \\t]+/g, ' ');\ntext = text.replace(/\\n{3,}/g, '\\n\\n');\ntext = text.trim();\n\nfunction extractSectionByHeadings(txt, headingKeywords) {\n  const lines = txt.split('\\n');\n  const isHeading = (line) =>\n    headingKeywords.some((h) => new RegExp('^\\\\s*' + h + '\\\\b', 'i').test(line));\n  let start = -1;\n  for (let i = 0; i < lines.length; i++) {\n    if (isHeading(lines[i])) { start = i + 1; break; }\n  }\n  if (start === -1) return null;\n  let end = lines.length;\n  for (let j = start; j < lines.length; j++) {\n    if (isHeading(lines[j])) { end = j; break; }\n  }\n  const section = lines.slice(start, end).join('\\n').trim();\n  return section || null;\n}\n\n// heading sets\nconst eduHeadings = ['education', 'educational background', 'academic', 'qualifications'];\nconst expHeadings = ['experience', 'work experience', 'employment', 'professional experience'];\nconst skillsHeadings = ['skills', 'technical skills', 'areas of expertise', 'skillset'];\n\n// extract\nconst education_section = extractSectionByHeadings(text, eduHeadings) || 'Not Found';\nconst experience_section = extractSectionByHeadings(text, expHeadings) || 'Not Found';\nconst skills_section = extractSectionByHeadings(text, skillsHeadings) || 'Not Found';\n\n// simple email and phone extraction\nconst emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}/);\nconst phoneMatch = text.match(/(\\+?\\d[\\d\\s().-]{7,}\\d)/);\n\nconst email = emailMatch ? emailMatch[0].trim() : 'Not Found';\nconst phone = phoneMatch ? phoneMatch[0].replace(/\\s+/g, ' ').trim() : 'Not Found';\n\n// token / length info for agent decisions\nconst charCount = text.length;\nconst wordCount = text ? text.split(/\\s+/).filter(Boolean).length : 0;\n\nconst out = {\n  parsedText_clean: text || 'Not Found',\n  education_section,\n  experience_section,\n  skills_section,\n  email,\n  phone,\n  parsed_chars: charCount,\n  parsed_words: wordCount\n};\n\nreturn [{ json: out }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        16
+      ],
+      "id": "45ee7e10-b8bb-44ef-9085-e66126a354ac",
+      "name": "Code1"
+    },
+    {
+      "parameters": {
+        "path": "410d7781-3a61-48ac-9941-75f714f9432a",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -208,
+        224
+      ],
+      "id": "a4d57c2b-1fb1-41bf-b568-2b7f89bff0f9",
+      "name": "trigger",
+      "webhookId": "410d7781-3a61-48ac-9941-75f714f9432a"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Structured Output Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return WebHook1": {
+      "main": [
+        [],
+        []
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Return WebHook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "OpenRouter Chat Model2": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Code1": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "trigger": {
+      "main": [
+        [
+          {
+            "node": "Code1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e538a30e-8d96-4c42-9304-b39f744ce232",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "f815447263fbbcfff3335ee1898dc4a817ebd77aa86aff407f7010c4ba04bc19"
+  },
+  "id": "L6QqA759ge329etB",
+  "tags": []
+}

@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 
 
 
-#source = r"c:\Users\ABHISHRUT\Desktop\HarshNewResume.pdf"  
+source = r"c:\Users\ABHISHRUT\Desktop\HarshNewResume.pdf"  
 converter = DocumentConverter()
 result = converter.convert(source)
 print(result.document.export_to_markdown()) 
