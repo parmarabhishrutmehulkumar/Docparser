@@ -459,31 +459,6 @@
         }
       });
 
-      async function pollResults(sessionId) {
-        const max = 30;
-        for (let i = 0; i < max; i++) {
-          try {
-            const resp = await fetch(
-              `http://localhost:5000/api/get-processed-data/${sessionId}`
-            );
-            if (resp.status === 200) {
-              const j = await resp.json();
-              console.log("processed result", j);
-
-              const resultsDiv = document.getElementById("results");
-              const resultsContent = document.getElementById("resultsContent");
-
-              resultsContent.textContent = JSON.stringify(j, null, 2);
-              resultsDiv.style.display = "block";
-              return;
-            }
-          } catch (e) {
-            console.error("poll error", e);
-          }
-          await new Promise((r) => setTimeout(r, 1000));
-        }
-        alert("Timed out waiting for processed result");
-      }
     </script>
   </body>
 </html>

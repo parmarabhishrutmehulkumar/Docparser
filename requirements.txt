@@ -1,0 +1,9 @@
+flask
+flask-cors
+requests
+pdfplumber
+pillow
+pytesseract
+easyocr
+numpy
+werkzeug
