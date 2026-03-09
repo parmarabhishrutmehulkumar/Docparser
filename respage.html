@@ -6,11 +6,7 @@
     <title>Find University</title>
 
     <style>
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-      }
+      * { margin: 0; padding: 0; box-sizing: border-box; }
 
       body {
         font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
@@ -24,7 +20,7 @@
         margin: 0 auto;
         background: white;
         border-radius: 20px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 20px 40px rgba(0,0,0,0.1);
         overflow: hidden;
       }
 
@@ -51,25 +47,12 @@
         transition: background 0.3s;
       }
 
-      .back-btn:hover {
-        background: rgba(255, 255, 255, 0.1);
-      }
+      .back-btn:hover { background: rgba(255,255,255,0.1); }
 
-      .header h1 {
-        font-size: 2.2em;
-        margin-bottom: 10px;
-        font-weight: 600;
-      }
+      .header h1 { font-size: 2.2em; margin-bottom: 10px; font-weight: 600; }
+      .header p  { font-size: 1.1em; opacity: 0.9; line-height: 1.5; }
 
-      .header p {
-        font-size: 1.1em;
-        opacity: 0.9;
-        line-height: 1.5;
-      }
-
-      .form-container {
-        padding: 40px 30px;
-      }
+      .form-container { padding: 40px 30px; }
 
       .form-title {
         font-size: 1.8em;
@@ -85,25 +68,12 @@
         margin-bottom: 25px;
       }
 
-      .form-group {
-        display: flex;
-        flex-direction: column;
-      }
+      .form-group { display: flex; flex-direction: column; }
+      .form-group.full-width { grid-column: 1 / -1; }
 
-      .form-group.full-width {
-        grid-column: 1 / -1;
-      }
+      label { font-weight: 600; margin-bottom: 8px; color: #2c3e50; font-size: 0.95em; }
 
-      label {
-        font-weight: 600;
-        margin-bottom: 8px;
-        color: #2c3e50;
-        font-size: 0.95em;
-      }
-
-      select,
-      input[type="text"],
-      textarea {
+      select, input[type="text"], textarea {
         padding: 12px 15px;
         border: 2px solid #e0e6ed;
         border-radius: 8px;
@@ -112,19 +82,13 @@
         background: white;
       }
 
-      select:focus,
-      input[type="text"]:focus,
-      textarea:focus {
+      select:focus, input[type="text"]:focus, textarea:focus {
         outline: none;
         border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
       }
 
-      textarea {
-        min-height: 80px;
-        resize: vertical;
-        font-family: inherit;
-      }
+      textarea { min-height: 80px; resize: vertical; font-family: inherit; }
 
       .button-row {
         display: grid;
@@ -150,26 +114,11 @@
         overflow: hidden;
       }
 
-      .upload-btn:hover {
-        background: #2c3e50;
-        transform: translateY(-1px);
-      }
-
-      .upload-btn.has-file {
-        background: #27ae60;
-      }
-
-      .upload-btn.has-file:hover {
-        background: #229954;
-      }
-
-      .drive-btn {
-        background: #2ecc71;
-      }
-
-      .drive-btn:hover {
-        background: #27ae60;
-      }
+      .upload-btn:hover        { background: #2c3e50; transform: translateY(-1px); }
+      .upload-btn.has-file     { background: #27ae60; }
+      .upload-btn.has-file:hover { background: #229954; }
+      .drive-btn               { background: #2ecc71; }
+      .drive-btn:hover         { background: #27ae60; }
 
       .recommend-btn {
         padding: 12px 30px;
@@ -181,24 +130,11 @@
         font-size: 16px;
         font-weight: 600;
         transition: all 0.3s ease;
-        position: relative;
-        overflow: hidden;
       }
 
-      .recommend-btn:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 10px 25px rgba(102, 126, 234, 0.3);
-      }
-
-      .recommend-btn:active {
-        transform: translateY(0);
-      }
-
-      .recommend-btn:disabled {
-        opacity: 0.6;
-        cursor: not-allowed;
-        transform: none;
-      }
+      .recommend-btn:hover    { transform: translateY(-2px); box-shadow: 0 10px 25px rgba(102,126,234,0.3); }
+      .recommend-btn:active   { transform: translateY(0); }
+      .recommend-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
       .file-input {
         position: absolute;
@@ -208,38 +144,96 @@
         cursor: pointer;
       }
 
-      .file-name {
-        font-size: 12px;
-        color: #7f8c8d;
-        margin-top: 5px;
-        word-break: break-all;
+      .file-name { font-size: 12px; color: #7f8c8d; margin-top: 5px; word-break: break-all; }
+      .upload-icon { font-size: 16px; }
+
+      /* ── Status bar ── */
+      #status-bar {
+        display: none;
+        margin: 0 30px 20px;
+        padding: 14px 18px;
+        border-radius: 8px;
+        font-size: 0.9rem;
+        font-weight: 500;
       }
 
-      .upload-icon {
-        font-size: 16px;
+      .status-processing { background: #ebf8ff; color: #2b6cb0; border: 1.5px solid #bee3f8; }
+      .status-error      { background: #fff5f5; color: #c53030; border: 1.5px solid #feb2b2; }
+
+      /* ── Results ── */
+      #results-section { display: none; padding: 0 30px 40px; }
+
+      #results-section h2 {
+        font-size: 1.3rem;
+        color: #2c3e50;
+        margin-bottom: 16px;
+        font-weight: 600;
       }
 
-      @media (max-width: 640px) {
-        .form-row {
-          grid-template-columns: 1fr;
-          gap: 15px;
-        }
+      .program-card {
+        background: #f7fafc;
+        border-radius: 10px;
+        padding: 18px;
+        margin-bottom: 14px;
+        border-left: 4px solid #667eea;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 14px;
+      }
 
-        .button-row {
-          grid-template-columns: 1fr;
-        }
+      .program-info  { flex: 1; }
 
-        .header {
-          padding: 30px 20px;
-        }
+      .program-name {
+        font-weight: 700;
+        font-size: 0.92rem;
+        color: #2d3748;
+        margin-bottom: 4px;
+      }
 
-        .header h1 {
-          font-size: 1.8em;
-        }
+      .program-university { color: #4a5568; font-size: 0.82rem; margin-bottom: 8px; }
 
-        .form-container {
-          padding: 30px 20px;
-        }
+      .program-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+
+      .tag {
+        background: #ebf8ff;
+        color: #2b6cb0;
+        padding: 3px 10px;
+        border-radius: 20px;
+        font-size: 0.72rem;
+        font-weight: 600;
+      }
+
+      .tag.strict   { background: #fff5f5; color: #c53030; }
+      .tag.moderate { background: #fffbeb; color: #b7791f; }
+      .tag.lenient  { background: #f0fff4; color: #276749; }
+
+      .score-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 50%;
+        width: 56px;
+        height: 56px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        font-size: 0.7rem;
+      }
+
+      .score-num { font-size: 1.05rem; font-weight: 700; line-height: 1; }
+
+      .spinner {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border: 2px solid #bee3f8;
+        border-top-color: #2b6cb0;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin-right: 8px;
+        vertical-align: middle;
       }
 
       .loading {
@@ -252,24 +246,28 @@
         animation: spin 1s ease-in-out infinite;
       }
 
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
+      @keyframes spin { to { transform: rotate(360deg); } }
+
+      @media (max-width: 640px) {
+        .form-row       { grid-template-columns: 1fr; gap: 15px; }
+        .button-row     { grid-template-columns: 1fr; }
+        .header         { padding: 30px 20px; }
+        .header h1      { font-size: 1.8em; }
+        .form-container { padding: 30px 20px; }
       }
     </style>
   </head>
   <body>
     <div class="container">
+
+      <!-- Header -->
       <div class="header">
         <button class="back-btn" onclick="goBack()">←</button>
         <h1>Find your Perfect University</h1>
-        <p>
-          Discover the best universities tailored to your academic goals and
-          preferences.
-        </p>
+        <p>Discover the best universities tailored to your academic goals and preferences.</p>
       </div>
 
+      <!-- Form -->
       <div class="form-container">
         <h2 class="form-title">Tell us about your preferences</h2>
 
@@ -296,11 +294,9 @@
               <label for="degreeLevel">Degree level</label>
               <select id="degreeLevel" required>
                 <option value="">Select degree level</option>
-                <option value="bachelor">Bachelor's Degree</option>
-                <option value="master">Master's Degree</option>
-                <option value="phd">PhD</option>
-                <option value="diploma">Diploma</option>
-                <option value="certificate">Certificate</option>
+                <option value="Master">Master's Degree</option>
+                <option value="Bachelor">Bachelor's Degree</option>
+                <option value="PhD">PhD</option>
               </select>
             </div>
           </div>
@@ -308,12 +304,7 @@
           <div class="form-row">
             <div class="form-group">
               <label for="location">Preferred Location</label>
-              <input
-                type="text"
-                id="location"
-                placeholder="Eg: City, State"
-                required
-              />
+              <input type="text" id="location" placeholder="Eg: City, State" required />
             </div>
 
             <div class="form-group">
@@ -321,13 +312,8 @@
               <select id="courseLanguage" required>
                 <option value="">Course language</option>
                 <option value="english">English</option>
-                <option value="spanish">Spanish</option>
-                <option value="french">French</option>
                 <option value="german">German</option>
-                <option value="chinese">Chinese</option>
-                <option value="japanese">Japanese</option>
-                <option value="arabic">Arabic</option>
-                <option value="hindi">Hindi</option>
+                <option value="french">French</option>
                 <option value="other">Other</option>
               </select>
             </div>
@@ -335,11 +321,7 @@
 
           <div class="form-group full-width">
             <label for="additionalPrefs">Add Preferences</label>
-            <textarea
-              id="additionalPrefs"
-              placeholder="Eg: Research, Opportunities, Campus Size etc..."
-              rows="3"
-            ></textarea>
+            <textarea id="additionalPrefs" placeholder="Eg: Research, Opportunities, Campus Size etc..." rows="3"></textarea>
           </div>
 
           <div class="button-row">
@@ -347,12 +329,7 @@
               <button type="button" class="upload-btn" id="uploadBtn">
                 <span class="upload-icon">📎</span>
                 <span id="uploadText">Upload Resume</span>
-                <input
-                  type="file"
-                  class="file-input"
-                  id="resumeFile"
-                  accept=".pdf,.doc,.docx,.txt"
-                />
+                <input type="file" class="file-input" id="resumeFile" accept=".pdf,.doc,.docx,.txt" />
               </button>
               <button type="button" class="upload-btn drive-btn" id="driveBtn">
                 <span class="upload-icon">📁</span>
@@ -367,98 +344,208 @@
           </div>
         </form>
       </div>
+
+      <!-- Status bar -->
+      <div id="status-bar"></div>
+
+      <!-- Results -->
+      <div id="results-section">
+        <h2 id="results-heading">Top Recommended Programs</h2>
+        <div id="results-list"></div>
+      </div>
+
     </div>
 
     <script>
-      const form = document.getElementById("universityForm");
-      const resumeFile = document.getElementById("resumeFile");
-      const recommendBtn = document.getElementById("recommendBtn");
-      const fileName = document.getElementById("fileName");
-      const uploadBtn = document.getElementById("uploadBtn");
-      const uploadText = document.getElementById("uploadText");
+      // ── CONFIG — change this to your Flask machine IP ──────────────────────
+      const FLASK_URL = "http://localhost:5000";
+      // ───────────────────────────────────────────────────────────────────────
 
-      resumeFile.addEventListener("change", function (e) {
+      let pollInterval = null;
+
+      function goBack() { history.back(); }
+
+      // File upload UI feedback
+      document.getElementById("resumeFile").addEventListener("change", function (e) {
         const file = e.target.files[0];
         if (file) {
-          fileName.textContent = `Selected: ${file.name}`;
-          uploadText.textContent = "Resume Uploaded";
-          uploadBtn.classList.add("has-file");
+          document.getElementById("fileName").textContent  = "Selected: " + file.name;
+          document.getElementById("uploadText").textContent = "Resume Uploaded";
+          document.getElementById("uploadBtn").classList.add("has-file");
         } else {
-          fileName.textContent = "";
-          uploadText.textContent = "Upload Resume";
-          uploadBtn.classList.remove("has-file");
+          document.getElementById("fileName").textContent  = "";
+          document.getElementById("uploadText").textContent = "Upload Resume";
+          document.getElementById("uploadBtn").classList.remove("has-file");
         }
       });
 
-      form.addEventListener("submit", async function (e) {
+      // Status helpers
+      function showStatus(message, type) {
+        const bar = document.getElementById("status-bar");
+        bar.style.display = "block";
+        bar.className = "status-" + type;
+        bar.innerHTML = type === "processing"
+          ? '<span class="spinner"></span>' + message
+          : message;
+      }
+
+      function hideStatus() {
+        document.getElementById("status-bar").style.display = "none";
+      }
+
+      // Form submit
+      document.getElementById("universityForm").addEventListener("submit", async function (e) {
         e.preventDefault();
-        const formData = new FormData();
-        formData.append(
-          "fieldOfStudy",
-          document.getElementById("fieldOfStudy").value
-        );
-        formData.append(
-          "degreeLevel",
-          document.getElementById("degreeLevel").value
-        );
-        formData.append(
-          "location",
-          document.getElementById("location").value.trim()
-        );
-        formData.append(
-          "courseLanguage",
-          document.getElementById("courseLanguage").value
-        );
-        formData.append(
-          "additionalPrefs",
-          document.getElementById("additionalPrefs").value.trim()
-        );
 
-        if (resumeFile.files.length > 0) {
-          formData.append("resume", resumeFile.files[0]);
-        }
+        const fieldOfStudy    = document.getElementById("fieldOfStudy").value;
+        const degreeLevel     = document.getElementById("degreeLevel").value;
+        const location        = document.getElementById("location").value.trim();
+        const courseLanguage  = document.getElementById("courseLanguage").value;
+        const additionalPrefs = document.getElementById("additionalPrefs").value.trim();
+        const resumeFile      = document.getElementById("resumeFile");
+        const recommendBtn    = document.getElementById("recommendBtn");
 
-        // basic validation
-        if (
-          !formData.get("fieldOfStudy") ||
-          !formData.get("degreeLevel") ||
-          !formData.get("location") ||
-          !formData.get("courseLanguage")
-        ) {
-          alert("Please fill required fields");
+        if (!fieldOfStudy || !degreeLevel || !location || !courseLanguage) {
+          showStatus("Please fill in all required fields.", "error");
           return;
         }
 
+        if (!resumeFile.files.length) {
+          showStatus("Please upload your resume before submitting.", "error");
+          return;
+        }
+
+        // Reset previous results
+        document.getElementById("results-section").style.display = "none";
+        document.getElementById("results-list").innerHTML = "";
+
         const sessionId = crypto.randomUUID();
-        formData.append("sessionId", sessionId);
+        const formData  = new FormData();
+        formData.append("sessionId",       sessionId);
+        formData.append("fieldOfStudy",    fieldOfStudy);
+        formData.append("degreeLevel",     degreeLevel);
+        formData.append("location",        location);
+        formData.append("courseLanguage",  courseLanguage);
+        formData.append("additionalPrefs", additionalPrefs);
+        formData.append("resume",          resumeFile.files[0]);
 
         recommendBtn.disabled = true;
         recommendBtn.innerHTML = '<span class="loading"></span> Processing...';
+        showStatus("Uploading resume and extracting your details...", "processing");
 
         try {
-          const resp = await fetch(
-            "http://localhost:5000/api/submit-preferences",
-            {
-              method: "POST",
-              mode: "cors",
-              body: formData,
-            }
-          );
+          const resp = await fetch(`${FLASK_URL}/api/submit-preferences`, {
+            method: "POST",
+            mode:   "cors",
+            body:   formData,
+          });
 
-          if (!resp.ok) throw new Error("HTTP " + resp.status);
+          if (!resp.ok) throw new Error("Server error: HTTP " + resp.status);
           const j = await resp.json();
-          console.log("submit response", j);
-          // poll for result
-          pollResults(sessionId);
+
+          if (!j.success) {
+            showStatus("Error: " + j.error, "error");
+            recommendBtn.disabled = false;
+            recommendBtn.innerHTML = "Get AI Recommendation";
+            return;
+          }
+
+          showStatus("Resume received. Analysing your profile and matching programs...", "processing");
+          startPolling(sessionId, recommendBtn);
+
         } catch (err) {
-          console.error(err);
-          alert("Submit failed: " + err.message);
-        } finally {
+          showStatus("Could not connect to server. Is Flask running on " + FLASK_URL + "?", "error");
           recommendBtn.disabled = false;
           recommendBtn.innerHTML = "Get AI Recommendation";
         }
       });
 
+      // Poll every 3 seconds until done
+      function startPolling(sessionId, btn) {
+        if (pollInterval) clearInterval(pollInterval);
+
+        pollInterval = setInterval(async () => {
+          try {
+            const resp = await fetch(`${FLASK_URL}/api/status/${sessionId}`);
+            const data = await resp.json();
+
+            if (data.status === "completed") {
+              clearInterval(pollInterval);
+              hideStatus();
+              btn.disabled = false;
+              btn.innerHTML = "Get AI Recommendation";
+              displayResults(data.data);
+
+            } else if (data.status === "failed") {
+              clearInterval(pollInterval);
+              showStatus("Processing failed: " + (data.error || "Unknown error"), "error");
+              btn.disabled = false;
+              btn.innerHTML = "Get AI Recommendation";
+            }
+            // still "processing" → keep polling
+
+          } catch (err) {
+            clearInterval(pollInterval);
+            showStatus("Lost connection to server.", "error");
+            btn.disabled = false;
+            btn.innerHTML = "Get AI Recommendation";
+          }
+        }, 3000);
+      }
+
+      // Render recommendation cards
+      function displayResults(data) {
+        const section = document.getElementById("results-section");
+        const listDiv = document.getElementById("results-list");
+
+        // Handle different shapes n8n might return
+        let recommendations = [];
+        if (data && Array.isArray(data.recommendations)) {
+          recommendations = data.recommendations;
+        } else if (Array.isArray(data)) {
+          recommendations = data;
+        } else if (data && data.success && Array.isArray(data.recommendations)) {
+          recommendations = data.recommendations;
+        }
+
+        if (!recommendations.length) {
+          listDiv.innerHTML = "<p style='color:#718096;padding:10px 0'>No recommendations found. Please try again.</p>";
+          section.style.display = "block";
+          return;
+        }
+
+        document.getElementById("results-heading").textContent =
+          "Top " + recommendations.length + " Recommended Programs";
+
+        listDiv.innerHTML = recommendations.map((p, i) => {
+          const score      = p.suitability_score || 0;
+          const strictness = (p.admission_strictness || "moderate").toLowerCase();
+          const tuition    = (p.tuition_fees === 0 || p.tuition_fees === "0" || p.tuition_fees === 0.0)
+                             ? "No tuition fees"
+                             : p.tuition_fees ? "€" + p.tuition_fees + "/sem" : "N/A";
+
+          return `
+            <div class="program-card">
+              <div class="program-info">
+                <div class="program-name">${i + 1}. ${p.programme || p.degree || "Unknown Programme"}</div>
+                <div class="program-university">${p.university || ""} — ${p.city || ""}</div>
+                <div class="program-meta">
+                  <span class="tag">${p.degree || ""}</span>
+                  <span class="tag ${strictness}">${p.admission_strictness || ""}</span>
+                  <span class="tag">${tuition}</span>
+                </div>
+              </div>
+              <div class="score-badge">
+                <span class="score-num">${(score * 100).toFixed(0)}%</span>
+                <span>match</span>
+              </div>
+            </div>
+          `;
+        }).join("");
+
+        section.style.display = "block";
+        section.scrollIntoView({ behavior: "smooth" });
+      }
     </script>
   </body>
 </html>
