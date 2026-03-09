@@ -237,21 +237,47 @@ def run_fuzzy_model(cgpa: float, test_score: float, admission_strictness: float)
     strict_s = fuzz.interp_membership(x_strict, strict_strict,  admission_strictness)
 
   
-    rule1_out = np.fmin(np.fmin(np.fmin(cgpa_h, test_s), strict_s), suit_high)  # High+Strong+Strict  → High
-    rule2_out = np.fmin(np.fmin(np.fmin(cgpa_h, test_s), strict_m), suit_high)  # High+Strong+Mod     → High
-    rule3_out = np.fmin(np.fmin(np.fmin(cgpa_m, test_a), strict_m), suit_med)   # Med+Avg+Mod         → Med
-    rule4_out = np.fmin(np.fmin(np.fmin(cgpa_m, test_a), strict_l), suit_med)   # Med+Avg+Lenient     → Med
-    rule5_out = np.fmin(np.fmin(np.fmin(cgpa_h, test_a), strict_m), suit_high)  # High+Avg+Mod        → High
-    rule6_out = np.fmin(np.fmin(cgpa_l, strict_l),                  suit_low)   # Low+Lenient         → Low
-    rule7_out = np.fmin(np.fmin(cgpa_l, strict_s),                  suit_low)   # Low+Strict          → Low
-    rule8_out = np.fmin(np.fmin(np.fmin(cgpa_m, test_s), strict_l), suit_med)   # Med+Strong+Lenient  → Med
+ 
 
-  
-    aggregated = rule1_out
-    for r in [rule2_out, rule3_out, rule4_out,
-              rule5_out, rule6_out, rule7_out, rule8_out]:
-        aggregated = np.fmax(aggregated, r)
+       # High CGPA
+    r1  = np.fmin(np.fmin(np.fmin(cgpa_h, test_s), strict_s), suit_high)
+    r2  = np.fmin(np.fmin(np.fmin(cgpa_h, test_s), strict_m), suit_high)
+    r3  = np.fmin(np.fmin(np.fmin(cgpa_h, test_s), strict_l), suit_high)
+    r4  = np.fmin(np.fmin(np.fmin(cgpa_h, test_a), strict_s), suit_med)
+    r5  = np.fmin(np.fmin(np.fmin(cgpa_h, test_a), strict_m), suit_high)
+    r6  = np.fmin(np.fmin(np.fmin(cgpa_h, test_a), strict_l), suit_high)
+    r7  = np.fmin(np.fmin(np.fmin(cgpa_h, test_w), strict_s), suit_med)
+    r8  = np.fmin(np.fmin(np.fmin(cgpa_h, test_w), strict_m), suit_med)
+    r9  = np.fmin(np.fmin(np.fmin(cgpa_h, test_w), strict_l), suit_med)
 
+    # Medium CGPA
+    r10 = np.fmin(np.fmin(np.fmin(cgpa_m, test_s), strict_s), suit_med)
+    r11 = np.fmin(np.fmin(np.fmin(cgpa_m, test_s), strict_m), suit_med)
+    r12 = np.fmin(np.fmin(np.fmin(cgpa_m, test_s), strict_l), suit_high)
+    r13 = np.fmin(np.fmin(np.fmin(cgpa_m, test_a), strict_s), suit_low)
+    r14 = np.fmin(np.fmin(np.fmin(cgpa_m, test_a), strict_m), suit_med)
+    r15 = np.fmin(np.fmin(np.fmin(cgpa_m, test_a), strict_l), suit_med)
+    r16 = np.fmin(np.fmin(np.fmin(cgpa_m, test_w), strict_s), suit_low)
+    r17 = np.fmin(np.fmin(np.fmin(cgpa_m, test_w), strict_m), suit_low)
+    r18 = np.fmin(np.fmin(np.fmin(cgpa_m, test_w), strict_l), suit_med)
+
+    # Low CGPA
+    r19 = np.fmin(np.fmin(np.fmin(cgpa_l, test_s), strict_s), suit_low)
+    r20 = np.fmin(np.fmin(np.fmin(cgpa_l, test_s), strict_m), suit_low)
+    r21 = np.fmin(np.fmin(np.fmin(cgpa_l, test_s), strict_l), suit_med)
+    r22 = np.fmin(np.fmin(np.fmin(cgpa_l, test_a), strict_s), suit_low)
+    r23 = np.fmin(np.fmin(np.fmin(cgpa_l, test_a), strict_m), suit_low)
+    r24 = np.fmin(np.fmin(np.fmin(cgpa_l, test_a), strict_l), suit_low)
+    r25 = np.fmin(np.fmin(np.fmin(cgpa_l, test_w), strict_s), suit_low)
+    r26 = np.fmin(np.fmin(np.fmin(cgpa_l, test_w), strict_m), suit_low)
+    r27 = np.fmin(np.fmin(np.fmin(cgpa_l, test_w), strict_l), suit_low)
+
+    # Aggregate all 27
+    aggregated = r1
+    for r in [r2,r3,r4,r5,r6,r7,r8,r9,
+          r10,r11,r12,r13,r14,r15,r16,r17,r18,
+          r19,r20,r21,r22,r23,r24,r25,r26,r27]:
+          aggregated = np.fmax(aggregated, r)
    
     try:
         final_score = fuzz.defuzz(x_suitability, aggregated, "centroid")
